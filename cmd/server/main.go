@@ -90,12 +90,12 @@ func getLocalIP() string {
 
 func guestURL(code string, reqHost string) string {
 	scheme := "http"
-	if strings.Contains(reqHost, "render.com") || strings.Contains(reqHost, "railway.app") || strings.Contains(reqHost, "ngrok") {
+	if strings.Contains(reqHost, "render.com") || strings.Contains(reqHost, "railway.app") || strings.Contains(reqHost, "ngrok") || strings.Contains(reqHost, "fly.dev") {
 		scheme = "https"
 	} else if strings.Contains(reqHost, "localhost") {
 		scheme = "http"
 	}
-	return fmt.Sprintf("%s://%s/?role=guest&code=%s", scheme, reqHost, code)
+	return fmt.Sprintf("%s://%s/%s", scheme, reqHost, code)
 }
 
 func newRoom() *Room {
@@ -251,7 +251,15 @@ func guestLoop(conn *websocket.Conn, r *Room) {
 
 func main() {
 	webDir := filepath.Join(baseDir, "web")
-	http.Handle("/", http.FileServer(http.Dir(webDir)))
+	fs := http.FileServer(http.Dir(webDir))
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || filepath.Ext(r.URL.Path) != "" {
+			fs.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
+	})
 	http.HandleFunc("/ws", handleWebSocket)
 
 	fmt.Println("╔══════════════════════════════════════════════════════════════╗")

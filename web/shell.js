@@ -22,7 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const errMsg    = document.getElementById('errMsg');
 
   const params = new URLSearchParams(location.search);
-  const code   = params.get('code') || '';
+  let code = params.get('code') || '';
+  if (!code && location.pathname.length > 1) {
+    code = location.pathname.substring(1);
+  }
 
   tRole.textContent = 'GUEST';
   tRole.classList.add('guest');
