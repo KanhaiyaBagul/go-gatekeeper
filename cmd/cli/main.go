@@ -237,7 +237,9 @@ func runCommand(line string) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			wsConn.WriteJSON(Message{Type: "stdout", Data: scanner.Text() + "\n"})
+			text := scanner.Text()
+			fmt.Println(text)
+			wsConn.WriteJSON(Message{Type: "stdout", Data: text + "\n"})
 		}
 	}()
 
@@ -245,7 +247,9 @@ func runCommand(line string) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			wsConn.WriteJSON(Message{Type: "stderr", Data: scanner.Text() + "\n"})
+			text := scanner.Text()
+			fmt.Fprintln(os.Stderr, text)
+			wsConn.WriteJSON(Message{Type: "stderr", Data: text + "\n"})
 		}
 	}()
 
