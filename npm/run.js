@@ -6,7 +6,8 @@ const path = require('path');
 const { spawn } = require('child_process');
 const https = require('https');
 
-const VERSION = 'v2.0.0';
+// Dynamically read version from package.json so it always matches the GitHub Release tag
+const VERSION = 'v' + require('../package.json').version;
 const REPO = 'VishalRaut2106/go-gatekeeper';
 
 const platform = os.platform();
