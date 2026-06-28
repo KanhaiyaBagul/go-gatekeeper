@@ -304,43 +304,16 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	webDir := filepath.Join(baseDir, "web")
-	docsDir := filepath.Join(webDir, "docs")
+	fs := http.FileServer(http.Dir(webDir))
 
-	mainFs := http.FileServer(http.Dir(webDir))
-	docsFs := http.FileServer(http.Dir(docsDir))
+	http.HandleFunc("/health", handleHealth)
+	http.HandleFunc("/stats", handleStats)
+	http.HandleFunc("/ws", handleWebSocket)
 
-	// Create custom router to handle multi-domain / virtual hosting routing
-	vhostHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host := strings.ToLower(r.Host)
-
-		// 1. Route documentation subdomain: e.g., docs.gatekeeper.abc or docs.localhost:8080
-		if strings.HasPrefix(host, "docs.") {
-			if r.URL.Path == "/" || filepath.Ext(r.URL.Path) != "" {
-				docsFs.ServeHTTP(w, r)
-				return
-			}
-			http.ServeFile(w, r, filepath.Join(docsDir, "index.html"))
-			return
-		}
-
-		// 2. Route relay/API requests: e.g., relay.gatekeeper.abc or /ws, /health, /stats on any host
-		if strings.HasPrefix(host, "relay.") || r.URL.Path == "/ws" || r.URL.Path == "/health" || r.URL.Path == "/stats" {
-			switch r.URL.Path {
-			case "/health":
-				handleHealth(w, r)
-			case "/stats":
-				handleStats(w, r)
-			case "/ws":
-				handleWebSocket(w, r)
-			default:
-				http.NotFound(w, r)
-			}
-			return
-		}
-
-		// 3. Default: Serve the standard terminal web client
+	// Serve static files for the guest client
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" || filepath.Ext(r.URL.Path) != "" {
-			mainFs.ServeHTTP(w, r)
+			fs.ServeHTTP(w, r)
 			return
 		}
 		http.ServeFile(w, r, filepath.Join(webDir, "index.html"))
@@ -352,7 +325,7 @@ func main() {
 	fmt.Printf( "║  Listening on port: %-40s ║\n", port)
 	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 
-	if err := http.ListenAndServe(":"+port, vhostHandler); err != nil {
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatalf("Server: %v", err)
 	}
 }
