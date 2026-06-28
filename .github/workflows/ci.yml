@@ -66,7 +66,6 @@ jobs:
           echo "Diff captured ($(wc -c < /tmp/pr_diff.txt) bytes)"
 
       - name: Review with Gemini
-        id: gemini
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
@@ -93,24 +92,28 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$REQUEST")
 
-          # Extract the text from the response
-          REVIEW=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text // "Gemini could not generate a review."')
+          # Extract the review text and write to file (avoids shell escaping issues)
+          echo "$RESPONSE" | jq -r \
+            '.candidates[0].content.parts[0].text // "⚠️ Gemini returned no review. Check the API key and quota."' \
+            > /tmp/gemini_review.txt
 
-          echo "REVIEW<<EOF" >> $GITHUB_OUTPUT
-          echo "$REVIEW" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "=== Gemini Review Preview ==="
+          head -5 /tmp/gemini_review.txt
 
       - name: Post review comment
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const review = `${{ steps.gemini.outputs.REVIEW }}`;
-            const body = `## 🤖 Gemini AI Code Review\n\n${review}\n\n---\n*Reviewed by Gemini 2.0 Flash · [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*`;
+            const fs = require('fs');
+            // Read from file to avoid template injection issues with special chars
+            const review = fs.readFileSync('/tmp/gemini_review.txt', 'utf8').trim();
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const body = `## 🤖 Gemini AI Code Review\n\n${review}\n\n---\n*Reviewed by Gemini 2.0 Flash · [View run](${runUrl})*`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
-              repo: context.repo.repo,
+              repo:  context.repo.repo,
               issue_number: context.payload.pull_request.number,
               body: body
             });
