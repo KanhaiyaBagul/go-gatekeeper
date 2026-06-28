@@ -155,6 +155,7 @@ func main() {
 				fmt.Print("Host> ")
 			} else {
 				if line != "" {
+					wsConn.WriteJSON(Message{Type: "stdout", Data: "\x1b[32m$ " + line + "\x1b[0m\n"})
 					mu.Lock()
 					shellBusy = true
 					mu.Unlock()

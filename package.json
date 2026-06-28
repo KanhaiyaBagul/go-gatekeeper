@@ -1,0 +1,25 @@
+{
+  "name": "gatekeeper-shell",
+  "version": "2.0.0",
+  "description": "The only terminal sharing tool safe enough to post on Twitter. Zero-trust pair programming.",
+  "main": "npm/run.js",
+  "bin": {
+    "gatekeeper-shell": "npm/run.js"
+  },
+  "scripts": {
+    "start": "node npm/run.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VishalRaut2106/go-gatekeeper.git"
+  },
+  "keywords": [
+    "terminal",
+    "share",
+    "ssh",
+    "pair-programming",
+    "security"
+  ],
+  "author": "Vishal Raut",
+  "license": "MIT"
+}

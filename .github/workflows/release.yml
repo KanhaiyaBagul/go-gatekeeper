@@ -1,0 +1,53 @@
+name: Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v2.0.1)'
+        required: true
+        default: 'v2.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          
+      - name: Build Binaries
+        run: |
+          mkdir -p dist
+          
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -o dist/gatekeeper-windows-amd64.exe ./cmd/cli
+          
+          # Linux
+          GOOS=linux GOARCH=amd64 go build -o dist/gatekeeper-linux-amd64 ./cmd/cli
+          
+          # macOS (Intel)
+          GOOS=darwin GOARCH=amd64 go build -o dist/gatekeeper-darwin-amd64 ./cmd/cli
+          
+          # macOS (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -o dist/gatekeeper-darwin-arm64 ./cmd/cli
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          files: dist/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
