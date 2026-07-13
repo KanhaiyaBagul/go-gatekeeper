@@ -48,6 +48,8 @@ type Room struct {
 	broadcast  chan Message
 	register   chan *Client
 	unregister chan *Client
+	done       chan struct{}
+	closeOnce  sync.Once
 
 	mu         sync.Mutex // Protects metadata and Guests map during iteration
 	GuestCount int
@@ -111,6 +113,7 @@ func newRoom() *Room {
 		broadcast:  make(chan Message),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		done:       make(chan struct{}),
 	}
 	rooms[code] = r
 	roomsMu.Unlock()
@@ -137,6 +140,9 @@ func (r *Room) destroy() {
 		delete(r.Guests, guest)
 	}
 	log.Printf("[room %s] destroyed", r.Code)
+	r.closeOnce.Do(func() {
+		close(r.done)
+	})
 }
 
 // run is the central message router for the room.
@@ -203,7 +209,10 @@ func (r *Room) run() {
 
 func (c *Client) readPump() {
 	defer func() {
-		c.room.unregister <- c
+		select {
+		case c.room.unregister <- c:
+		case <-c.room.done:
+		}
 		c.conn.Close()
 	}()
 	for {
