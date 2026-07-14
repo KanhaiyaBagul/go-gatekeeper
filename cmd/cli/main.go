@@ -368,10 +368,8 @@ func runCommand(line string) {
 				if target == "~" {
 					target = home
 				} else {
-					target = filepath.Join(
-						home,
-						strings.TrimPrefix(target, "~/"),
-					)
+					rel := strings.TrimLeft(strings.TrimPrefix(target, "~/"), "/\\")
+					target = filepath.Join(home, rel)
 				}
 			}
 		}
