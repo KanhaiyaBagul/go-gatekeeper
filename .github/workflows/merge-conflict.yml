@@ -1,0 +1,25 @@
+name: "Merge Conflict Monitor"
+
+on:
+  # Run when a PR is merged into master (to check if it broke other open PRs)
+  push:
+    branches:
+      - master
+  # Run when an author updates their PR branch (to check if they resolved it)
+  pull_request_target:
+    types: [synchronize]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  check_conflicts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for merge conflicts
+        uses: prince-chrismc/label-merge-conflicts-action@v3
+        with:
+          conflict_label_name: "has conflicts"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          conflict_comment: "Hey @${author}, this PR has developed a merge conflict with `master`. Could you please pull the latest `master` and resolve the conflict so we can get this merged? Thanks! 🚀"

@@ -50,6 +50,8 @@ type Room struct {
 	broadcast  chan Message
 	register   chan *Client
 	unregister chan *Client
+	done       chan struct{}
+	closeOnce  sync.Once
 
 	mu         sync.Mutex // Protects metadata and Guests map during iteration
 	GuestCount int
@@ -82,27 +84,11 @@ func init() {
 
 func generateCode() string {
 	b := make([]byte, 3)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return strings.ToUpper(hex.EncodeToString(b))
 }
 
-func getLocalIP() string {
-	ifaces, _ := net.Interfaces()
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-		addrs, _ := iface.Addrs()
-		for _, addr := range addrs {
-			if ipnet, ok := addr.(*net.IPNet); ok {
-				if ip4 := ipnet.IP.To4(); ip4 != nil {
-					return ip4.String()
-				}
-			}
-		}
-	}
-	return "localhost"
-}
+
 
 func guestURL(code string, reqHost string) string {
 	scheme := "http"
@@ -129,6 +115,7 @@ func newRoom() *Room {
 		broadcast:  make(chan Message),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
+		done:       make(chan struct{}),
 	}
 	rooms[code] = r
 	roomsMu.Unlock()
@@ -155,6 +142,9 @@ func (r *Room) destroy() {
 		delete(r.Guests, guest)
 	}
 	log.Printf("[room %s] destroyed", r.Code)
+	r.closeOnce.Do(func() {
+		close(r.done)
+	})
 }
 
 // run is the central message router for the room.
@@ -221,7 +211,10 @@ func (r *Room) run() {
 
 func (c *Client) readPump() {
 	defer func() {
-		c.room.unregister <- c
+		select {
+		case c.room.unregister <- c:
+		case <-c.room.done:
+		}
 		c.conn.Close()
 	}()
 	for {
@@ -330,8 +323,8 @@ func handleWebSocket(w http.ResponseWriter, req *http.Request) {
 		roomsMu.RUnlock()
 
 		if !ok || code == "" {
-			conn.WriteJSON(Message{Type: "stderr", Data: "Invalid or expired session code."})
-			conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "invalid code"))
+			_ = conn.WriteJSON(Message{Type: "stderr", Data: "Invalid or expired session code."})
+			_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "invalid code"))
 			conn.Close()
 			return
 		}
@@ -355,12 +348,12 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":      "ok",
 		"uptime":      time.Since(serverStart).String(),
 		"activeRooms": activeRooms,
 		"totalConns":  total,
-		"version":     "2.1.1",
+		"version":     "2.1.2",
 	})
 }
 
@@ -384,7 +377,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	roomsMu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"rooms":  infos,
 		"uptime": time.Since(serverStart).String(),
 	})
